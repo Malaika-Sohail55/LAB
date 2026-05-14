@@ -7,19 +7,37 @@ from transformers import MarianMTModel, MarianTokenizer
 
 st.set_page_config(page_title="English → Urdu Translator", page_icon="🌐")
 
-MODEL_DIR = "./en_ur_translation_model"
 GDRIVE_ID = "1Zvs35RIOA7RrVEwQFiShYar6UvmhXC51"
+ZIP_PATH  = "model.zip"
 
 @st.cache_resource
 def load_model():
-    if not os.path.exists(MODEL_DIR):
-        with st.spinner("⏳ Downloading model... (first run only, ~545MB)"):
-            gdown.download(f"https://drive.google.com/uc?id={GDRIVE_ID}", "model.zip", quiet=False)
-            with zipfile.ZipFile("model.zip", "r") as z:
-                z.extractall(".")
-            os.remove("model.zip")
-    model = MarianMTModel.from_pretrained(MODEL_DIR)
-    tokenizer = MarianTokenizer.from_pretrained(MODEL_DIR)
+    # Step 1: Download zip if not already there
+    if not os.path.exists(ZIP_PATH):
+        with st.spinner("⏳ Downloading model... (~545MB, first run only)"):
+            gdown.download(f"https://drive.google.com/uc?id={GDRIVE_ID}", ZIP_PATH, quiet=False)
+
+    # Step 2: Extract and auto-detect the model folder
+    with st.spinner("📦 Extracting model..."):
+        with zipfile.ZipFile(ZIP_PATH, "r") as z:
+            z.extractall(".")
+            all_names = z.namelist()
+
+    # Step 3: Find the folder that contains config.json
+    model_dir = None
+    for name in all_names:
+        if "config.json" in name:
+            model_dir = os.path.dirname(name)
+            break
+
+    # If config.json is in root of zip, use current directory
+    if model_dir == "" or model_dir is None:
+        model_dir = "."
+
+    st.write(f"📁 Model found at: `{model_dir}`")  # helpful debug line
+
+    model     = MarianMTModel.from_pretrained(model_dir)
+    tokenizer = MarianTokenizer.from_pretrained(model_dir)
     return model, tokenizer
 
 model, tokenizer = load_model()
@@ -50,7 +68,7 @@ if st.button("Translate 🔁"):
 
         st.subheader("Urdu Translation:")
         st.markdown(
-            f"<p style='font-size:26px; direction:rtl; text-align:right; font-family:Noto Nastaliq Urdu;'>{result}</p>",
+            f"<p style='font-size:26px; direction:rtl; text-align:right;'>{result}</p>",
             unsafe_allow_html=True
         )
     else:
